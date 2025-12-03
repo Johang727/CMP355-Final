@@ -45,16 +45,8 @@ master_dataframe:pd.DataFrame = pd.concat(dataframe_list, ignore_index=True)
 
 old_instances:int = len(master_dataframe)
 
-q1 = master_dataframe.quantile(.25); q3 = master_dataframe.quantile(.75)
+iqr_mask = (master_dataframe["APM"] > 0.0) # what if i just get rid of the iqr
 
-iqr = q3 - q1
-
-multi:float = 2.5
-
-lower = q1 - multi * iqr
-upper = q3 + multi * iqr
-
-iqr_mask = ((master_dataframe >= lower) & (master_dataframe <= upper)).all(axis=1) & (master_dataframe["APM"] > 0.0)
 
 master_dataframe = master_dataframe[iqr_mask]
 
@@ -72,12 +64,19 @@ sr_counts:dict[str, int] = master_dataframe["SRBins"].value_counts().sort_index(
 for key, value in sr_counts.items():
     print(f"{key} has {value} instances")
 
+# --------------------------------  
+
+# make app (it tends to predict lower ratings better this way)
+# --------------------------------
+
+master_dataframe["APP"] = master_dataframe["APM"] / master_dataframe['DPM']
+
 # --------------------------------
 
 # data splitting
 # --------------------------------
 
-x = master_dataframe[["Date", "DPM", "APM"]]
+x = master_dataframe[["Date", "DPM", "APM", "APP"]]
 y = master_dataframe["SR"]
 
 x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=master_dataframe["SRBins"])
@@ -309,12 +308,14 @@ print(f"Mean Absolute Percentage Error: {mape[3]*100:.2f}%")
 # My rating is : 11257
 
 
-# data prep
+day:int = 45994
+dpm:float = 94.9
+apm:float = 76.1
+app:float = apm/dpm
 
-in_data = pd.DataFrame([[45994, 94.9, 76.1]])
+# data pred, mid-rank
 
-
-
+in_data = pd.DataFrame([[day, dpm, apm, app]])
 
 print("Real world tests:")
 
@@ -328,6 +329,24 @@ print(f"Gradient Boosting: {round(models[2].predict(in_data)[0])}")
 print(f"Random Forest + Gradient Boosting: {round(models[3].predict(in_data)[0])}")
 
 
+# data pred, low rank
+
+dpm:float = 24.4
+apm:float = 11.0
+app:float = apm/dpm
+
+in_data = pd.DataFrame([[day, dpm, apm, app]])
+
+print("Real world tests:")
+
+print(f"Linear: {round(models[1].predict(in_data)[0])}")
+
+tp = [tree.predict(in_data) for tree in models[0].estimators_]
+print(f"Random Forest: {round(np.mean(tp))} ± {round(np.std(tp))}")
+
+print(f"Gradient Boosting: {round(models[2].predict(in_data)[0])}")
+
+print(f"Random Forest + Gradient Boosting: {round(models[3].predict(in_data)[0])}")
 
 
 end = time.time()
