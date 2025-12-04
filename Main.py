@@ -1,10 +1,14 @@
 import pandas as pd
-import os, time, datetime, sys
+import os, time, sys
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, VotingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import root_mean_squared_error, r2_score, mean_absolute_percentage_error
 import numpy as np
+
+import warnings
+warnings.filterwarnings(action='ignore', category=UserWarning)
+
 
 # variables
 # --------------------------------
@@ -224,12 +228,23 @@ models.append(VotingRegressor(
     n_jobs=-1
 ))
 
+# create ensemble of everything, what happens?
+
+models.append(VotingRegressor(
+    estimators=[
+        ("rf", models[0]),
+        ("l", models[1]),
+        ("gb", models[2])
+    ],
+    n_jobs=-1
+))
 
 
 models[0].fit(x_train, y_train) # Random Forest
 models[1].fit(x_train, y_train) # Linear
 models[2].fit(x_train, y_train) # Gradient Boosting
-models[3].fit(x_train, y_train) # Ensemble
+models[3].fit(x_train, y_train) # Ensemble of trees
+models[4].fit(x_train, y_train) # all of them
 
 # test random forest
 # --------------------------------
@@ -280,7 +295,7 @@ print(f"Mean Absolute Percentage Error: {mape[2]*100:.2f}%")
 
 # --------------------------------
 
-# test All Ensemble
+# test tree ensemble
 # --------------------------------
 
 print("\n----\nTesting RF + GB\n")
@@ -298,6 +313,24 @@ print(f"Mean Absolute Percentage Error: {mape[3]*100:.2f}%")
 
 # --------------------------------
 
+# test all ensemble
+# --------------------------------
+
+print("\n----\nTesting All\n")
+
+predictions.append(models[4].predict(x_test))
+
+rmse.append(root_mean_squared_error(y_test, predictions[4]))
+r2.append(r2_score(y_test, predictions[4]))
+mape.append(mean_absolute_percentage_error(y_test, predictions[4]))
+
+
+print(f"Root Mean Squared Error: {rmse[4]:.2f}")
+print(f"R-squared: {r2[4]:.4f}")
+print(f"Mean Absolute Percentage Error: {mape[4]*100:.2f}%")
+
+# --------------------------------
+
 # make predictions
 # --------------------------------
 
@@ -307,46 +340,80 @@ print(f"Mean Absolute Percentage Error: {mape[3]*100:.2f}%")
 
 # My rating is : 11257
 
+def check_data() -> None:
+    global models, day, dpm, apm, app
+
+    in_data = pd.DataFrame([[day, dpm, apm, app]])
+
+    print(f"Linear: {round(models[1].predict(in_data)[0])}")
+
+    tp = [tree.predict(in_data) for tree in models[0].estimators_]
+    print(f"Random Forest: {round(np.mean(tp))} ± {round(np.std(tp))}")
+
+    print(f"Gradient Boosting: {round(models[2].predict(in_data)[0])}")
+
+    print(f"Random Forest + Gradient Boosting: {round(models[3].predict(in_data)[0])}")
+
+    print(f"All of them: {round(models[4].predict(in_data)[0])}")
+
+print("Real Data Tests:")
+
+
+# data pred, mid-rank
+print("\nPersonal Game:")
+
 
 day:int = 45994
+
 dpm:float = 94.9
 apm:float = 76.1
 app:float = apm/dpm
 
-# data pred, mid-rank
+check_data()
 
-in_data = pd.DataFrame([[day, dpm, apm, app]])
 
-print("Real world tests:")
 
-print(f"Linear: {round(models[1].predict(in_data)[0])}")
-
-tp = [tree.predict(in_data) for tree in models[0].estimators_]
-print(f"Random Forest: {round(np.mean(tp))} ± {round(np.std(tp))}")
-
-print(f"Gradient Boosting: {round(models[2].predict(in_data)[0])}")
-
-print(f"Random Forest + Gradient Boosting: {round(models[3].predict(in_data)[0])}")
 
 
 # data pred, low rank
+print("\nLow Rating Game:")
 
-dpm:float = 24.4
-apm:float = 11.0
-app:float = apm/dpm
+apm = 16.4
+app = apm/dpm
 
-in_data = pd.DataFrame([[day, dpm, apm, app]])
+check_data()
 
-print("Real world tests:")
 
-print(f"Linear: {round(models[1].predict(in_data)[0])}")
 
-tp = [tree.predict(in_data) for tree in models[0].estimators_]
-print(f"Random Forest: {round(np.mean(tp))} ± {round(np.std(tp))}")
 
-print(f"Gradient Boosting: {round(models[2].predict(in_data)[0])}")
 
-print(f"Random Forest + Gradient Boosting: {round(models[3].predict(in_data)[0])}")
+# data pred, mom data
+print("\nMom Game:")
+
+dpm = 19.1
+apm = 1.4
+app = apm/dpm
+
+check_data()
+
+
+# data pred, instant top out
+print("\nInstant Top Out:")
+
+dpm = 600.0
+apm = 0
+app = apm/dpm
+
+check_data()
+
+# data pred, that's right, it goes into the square hole!
+print("\nakashirobo square_one:")
+
+dpm = 147.6
+apm = 130.0
+app = apm/dpm
+
+check_data()
 
 
 end = time.time()
